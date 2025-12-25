@@ -3,6 +3,7 @@ from discord.ext import commands
 import datetime
 import json
 import os
+from keep_alive import keep_alive  # <--- 1. เพิ่มบรรทัดนี้ที่บนสุด
 
 # --- ส่วนตั้งค่าบอท ---
 intents = discord.Intents.default()
@@ -123,5 +124,6 @@ async def tops(ctx):
     await ctx.send(embed=embed)
 
 # ให้บอทไปหา Token จากตู้เซฟของเซิร์ฟเวอร์แทน (เดี๋ยวเราไปใส่ทีหลัง)
+keep_alive()
 token = os.getenv('TOKEN') 
 bot.run(token)

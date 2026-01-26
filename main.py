@@ -24,8 +24,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        # กลับมาใช้ชื่อนี้ เพราะระบบของน้องรู้จักชื่อนี้ (อ้างอิงจาก !listmodels)
-        model_name="gemini-2.0-flash-lite"
+        # เติมคอมม่า (,) ที่ท้ายบรรทัดข้างล่างนี้ครับ
+        model_name="gemini-2.0-flash-lite", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

@@ -28,7 +28,7 @@ if GEMINI_KEY:
 
     # ลองใช้ชื่อ gemini-1.5-flash (ถ้ายัง 404 ให้เปลี่ยนเป็น gemini-pro)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash", 
+        model_name="gemini-pro", 
         system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงปากหมา กวนตีน ใช้คำหยาบได้เต็มที่ ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
         safety_settings=safety_settings
     )

@@ -24,8 +24,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        # ใช้ชื่อนี้เลยครับ มีใน !listmodels แน่นอน และโควตาน่าจะเยอะกว่า 2.0
-        model_name="gemini-2.0-flash-lite", 
+        # เปลี่ยนมาใช้รุ่นนี้แทน เพราะโควตาสายฟรีเยอะกว่า (ประมาณ 1,500 ครั้ง/วัน)
+        model_name="gemini-flash-latest", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

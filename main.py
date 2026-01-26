@@ -36,36 +36,38 @@ def save_data():
         json.dump(data, f, indent=4)
 
 # --- ฟังก์ชันแกะซอง TrueMoney (ฉบับสมบูรณ์) ---
-def redeem_gift(url, phone_number):
+d@bot.command()
+async def topup(ctx, link: str):
+    # 1. ตรวจสอบเบื้องต้นว่าเป็นลิ้งก์ซองไหม
+    if "gift.truemoney.com" not in link:
+        await ctx.reply("❌ ลิ้งก์ไม่ถูกต้องครับ")
+        return
+
+    # 2. ตั้งค่าไอดีของคุณ (เอาไอดีของคุณใส่ตรงนี้)
+    OWNER_ID = 1039199055923904562  # <--- ⚠️ เปลี่ยนเป็น ID Discord ของน้องจริงๆ
+
     try:
-        if "v=" in url:
-            voucher_id = url.split("v=")[1].split("&")[0].strip()
-        else:
-            return {"status": "error", "message": "❌ ลิ้งก์ไม่ถูกต้อง (ต้องมี v=...)"}
-
-        api_url = f"https://gift.truemoney.com/campaign/vouchers/{voucher_id}/redeem"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Content-Type": "application/json",
-            "Origin": "https://gift.truemoney.com",
-            "Referer": "https://gift.truemoney.com/"
-        }
-        payload = {"mobile": phone_number, "voucher_hash": voucher_id}
+        # 3. ดึงข้อมูล User ของเรา
+        owner = await bot.fetch_user(OWNER_ID)
         
-        response = requests.post(api_url, headers=headers, json=payload, timeout=5)
+        # 4. ส่งข้อความหาเราใน DM
+        embed = discord.Embed(title="💰 มีคนส่งซองของขวัญมาครับ!", color=0x00ff00)
+        embed.add_field(name="จากคุณ", value=f"{ctx.author.name} (ID: {ctx.author.id})", inline=False)
+        embed.add_field(name="ลิ้งก์ซอง", value=link, inline=False)
+        embed.set_footer(text="รีบกดรับก่อนซองหมดอายุนะพี่ชาย!")
         
-        if response.status_code != 200:
-            return {"status": "error", "message": f"❌ TrueMoney ปฏิเสธ (Code {response.status_code})"}
+        await owner.send(embed=embed)
+        await owner.send(link) # ส่งลิ้งก์แยกอีกรอบเพื่อให้กดง่ายๆ ในมือถือ
 
-        result = response.json()
-        if result['status']['code'] == 'SUCCESS':
-            amount = result['data']['my_ticket']['amount_baht']
-            sender = result['data']['owner_profile']['full_name']
-            return {"status": "success", "amount": amount, "sender": sender}
-        else:
-            return {"status": "error", "message": f"❌ {result['status']['message']}"}
+        # 5. ลบข้อความต้นฉบับในห้องแชท (เพื่อไม่ให้คนอื่นเห็นลิ้งก์)
+        await ctx.message.delete()
+
+        # 6. ตอบกลับลูกค้าในห้องแชท
+        await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองสำเร็จแล้ว! โปรดรอเจ้าของตรวจสอบและดำเนินการครับ")
+
     except Exception as e:
-        return {"status": "error", "message": "❌ ระบบขัดข้อง"}
+        print(f"Error: {e}")
+        await ctx.send("❌ บอทไม่สามารถส่ง DM หาเจ้าของได้ (อาจจะไม่ได้เปิด DM ไว้)")
 
 # --- Commands ---
 @bot.event

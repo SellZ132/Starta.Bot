@@ -10,22 +10,20 @@ from keep_alive import keep_alive
 
 # --- 🧠 ตั้งค่า Gemini AI ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-    
-    # --- 🛠️ ปลดล็อกฟิลเตอร์ความปลอดภัย (เอาไว้ด่ากลับโดยเฉพาะ) ---
-    safety_settings = {
-        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-    }
 
+# แก้ตรงนี้: ถ้าไม่มี Key ให้บอทแจ้งเตือนตอนรันเลย
+if not GEMINI_KEY:
+    print("❌ พังพินาศ! ลืมใส่ GEMINI_API_KEY ใน Render หรือเปล่าพี่ชาย?")
+else:
+    genai.configure(api_key=GEMINI_KEY)
+    # นิยาม model ไว้ข้างนอกให้ชัดเจน
     model = genai.GenerativeModel(
         model_name="gemini-1.5-flash",
-        # ปรับนิสัยให้โหดและกวนตีนขึ้น
-        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงที่ปากหมาและกวนตีนที่สุดในดิสคอร์ด ไม่ต้องเป็นสุภาพบุรุษ ใครด่ามาด่ากลับได้เลย ใช้คำหยาบได้ตามความเหมาะสมของบทสนทนา (เช่น กู, มึง, ไอ้...) เน้นความตึงและกวนประสาทเป็นหลัก",
-        safety_settings=safety_settings # ใส่ค่าที่ตั้งไว้ข้างบนลงไป
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
+        safety_settings={
+            "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+            "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+        }
     )
 chat_sessions = {}
 

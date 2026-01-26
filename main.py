@@ -3,7 +3,6 @@ from discord.ext import commands
 import datetime
 import json
 import os
-import requests
 from keep_alive import keep_alive
 
 # --- ส่วนตั้งค่าบอท ---

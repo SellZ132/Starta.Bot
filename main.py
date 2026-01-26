@@ -1,9 +1,53 @@
+import google.generativeai as genai
+import asyncio
+import os
 import discord
 from discord.ext import commands
 import datetime
 import json
 import os
 from keep_alive import keep_alive
+
+# --- 🧠 ตั้งค่าสมอง Gemini ---
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# เลือกโมเดล (ใช้ตัว 1.5 Flash จะไวและประหยัดที่สุด)
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction="นายคือ 'น้อนบอท' ผู้ช่วยสุดตึงที่เป็นมิตร กวนประสาทนิดๆ และฉลาดมาก ตอบคำถามได้ทุกเรื่อง ถ้าคนถามยาวให้ตอบแบบมีสาระ ถ้าคนถามกวนให้ตอบกวนกลับ อย่าตอบยาวเกินไปจนน่าเบื่อ"
+)
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    TARGET_CHANNEL_ID = 1465350210543947971 
+    
+    if message.channel.id == TARGET_CHANNEL_ID:
+        # 1. แสดงสถานะกำลังพิมพ์...
+        async with message.channel.typing():
+            try:
+                # 2. จำลองเวลาคิดตามความยาก (ความยาว)
+                thinking_delay = min(len(message.content) * 0.1, 5)
+                await asyncio.sleep(thinking_delay)
+
+                # 3. ส่งคำถามไปให้ Gemini
+                # เราใส่ข้อความเข้าไปเพื่อให้ AI รู้บริบท
+                response = model.generate_content(message.content)
+                
+                # 4. ส่งคำตอบกลับไป
+                if response.text:
+                    await message.reply(response.text)
+                else:
+                    await message.reply("เอ่อ... เมื่อกี้สมองผมค้างนิดหน่อย พิมพ์ใหม่ทีพี่ชาย")
+
+            except Exception as e:
+                print(f"Gemini Error: {e}")
+                await message.reply("ตอนนี้สมองผมตึงจัด ประมวลผลไม่ทัน ลองใหม่นะ!")
+
+    # ⚠️ ห้ามลืม! เพื่อให้คำสั่ง ! อื่นๆ ยังทำงานได้
+    await bot.process_commands(message)
 
 # --- ตั้งค่าพื้นฐาน ---
 intents = discord.Intents.default()

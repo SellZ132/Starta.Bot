@@ -25,7 +25,7 @@ if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
         # ใช้ชื่อนี้เลยครับ มีใน !listmodels แน่นอน และโควตาน่าจะเยอะกว่า 2.0
-        model_name="gemini-flash-latest", 
+        model_name="gemini-2.0-flash-lite", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

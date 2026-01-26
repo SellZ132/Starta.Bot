@@ -12,26 +12,34 @@ from keep_alive import keep_alive
 chat_sessions = {} 
 model = None
 
-# --- 🧠 ตั้งค่า Gemini AI (ฉบับจบปัญหา 404 แน่นอน) ---
+# --- 🧠 ตั้งค่า Gemini AI (ฉบับจบปัญหาสุดท้าย) ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_KEY:
+    # บังคับให้ใช้ API ตัวล่าสุด
     genai.configure(api_key=GEMINI_KEY)
     
-    # ตั้งค่าความปลอดภัยแบบ List (เสถียรกว่ามากในหลายเวอร์ชัน)
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-    ]
-
-    # ลองใช้ชื่อ gemini-1.5-flash (ถ้ายัง 404 ให้เปลี่ยนเป็น gemini-pro)
+    # ลองใช้รุ่นที่เสถียรที่สุดของประตูบานนี้
     model = genai.GenerativeModel(
-        model_name="gemini-pro", 
-        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงปากหมา กวนตีน ใช้คำหยาบได้เต็มที่ ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
-        safety_settings=safety_settings
+        model_name="gemini-1.5-flash", # ห้ามใส่ latest หรือ v1beta
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
+        safety_settings=[
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
     )
+
+# --- 🔍 คำสั่งใหม่เอาไว้เช็ครุ่น (พิมพ์ !listmodels ในดิส) ---
+@bot.command()
+async def listmodels(ctx):
+    try:
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        msg = "📜 **รุ่นที่บอทใช้ได้ตอนนี้:**\n" + "\n".join(models)
+        await ctx.send(msg)
+    except Exception as e:
+        await ctx.send(f"❌ เช็คไม่ได้เพราะ: {e}")
 
 # --- 🤖 ตั้งค่า Discord Bot ---
 intents = discord.Intents.default()

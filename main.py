@@ -24,8 +24,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        # เปลี่ยนเป็นรุ่น Pro เพื่อเลี่ยงรุ่น 2.5 Flash ที่ติดโควตา
-        model_name="gemini-pro-latest", 
+        # ลองใช้รุ่น 2.0 มาตรฐานดูครับ (ไม่ใช่รุ่น 2.5 ที่ติดโควตา 20 ครั้ง)
+        model_name="gemini-2.0-flash", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

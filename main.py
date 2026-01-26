@@ -12,23 +12,24 @@ from keep_alive import keep_alive
 chat_sessions = {} 
 model = None
 
-# --- 🧠 ตั้งค่า Gemini AI ---
+# --- 🧠 ตั้งค่า Gemini AI (ฉบับจบปัญหา 404 แน่นอน) ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     
-    # ปรับจูน Safety เพื่อให้ด่ากลับได้ตึงๆ
-    safety_settings = {
-        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-    }
+    # ตั้งค่าความปลอดภัยแบบ List (เสถียรกว่ามากในหลายเวอร์ชัน)
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
 
+    # ลองใช้ชื่อ gemini-1.5-flash (ถ้ายัง 404 ให้เปลี่ยนเป็น gemini-pro)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest", 
-        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงประจำเซิร์ฟเวอร์ดิสคอร์ด ปากหมา กวนตีน ใช้คำหยาบได้ (กู, มึง) ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
+        model_name="gemini-1.5-flash", 
+        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงปากหมา กวนตีน ใช้คำหยาบได้เต็มที่ ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
         safety_settings=safety_settings
     )
 

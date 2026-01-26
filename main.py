@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold # เพิ่มอันนี้เข้ามา
 import asyncio
 from keep_alive import keep_alive
 
@@ -11,9 +12,20 @@ from keep_alive import keep_alive
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
+    
+    # --- 🛠️ ปลดล็อกฟิลเตอร์ความปลอดภัย (เอาไว้ด่ากลับโดยเฉพาะ) ---
+    safety_settings = {
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
+
     model = genai.GenerativeModel(
         model_name="gemini-1.5-flash",
-        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงประจำเซิร์ฟเวอร์ นิสัยกวนๆ ขี้เล่น ตอบสั้นๆ กระชับแบบวัยรุ่นไทย ชอบใช้คำว่า ตึง, จัดไปพี่ชาย, นอยด์อ่ะ"
+        # ปรับนิสัยให้โหดและกวนตีนขึ้น
+        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงที่ปากหมาและกวนตีนที่สุดในดิสคอร์ด ไม่ต้องเป็นสุภาพบุรุษ ใครด่ามาด่ากลับได้เลย ใช้คำหยาบได้ตามความเหมาะสมของบทสนทนา (เช่น กู, มึง, ไอ้...) เน้นความตึงและกวนประสาทเป็นหลัก",
+        safety_settings=safety_settings # ใส่ค่าที่ตั้งไว้ข้างบนลงไป
     )
 chat_sessions = {}
 
@@ -23,13 +35,13 @@ intents.message_content = True
 intents.voice_states = True
 intents.members = True 
 
-bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้อง & คุยกับ Gemini 🕵️✨"))
+bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้อง & ด่าคน 🕵️🔥"))
 
 DATA_FILE = "time_data.json"
 voice_start = {}
 voice_total = {}
 
-# --- 📂 ระบบจัดการข้อมูลเวลา ---
+# --- 📂 ระบบจัดการข้อมูลเวลา (เหมือนเดิม) ---
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -49,13 +61,12 @@ def save_data():
     except Exception as e:
         print(f"⚠️ บันทึกข้อมูลพลาด: {e}")
 
-# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini) ---
+# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini สายโหด) ---
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # ตอบเฉพาะห้องที่กำหนด และไม่ใช่คำสั่ง !
     TARGET_CHANNEL_ID = 1465350210543947971
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
         async with message.channel.typing():
@@ -63,19 +74,23 @@ async def on_message(message):
                 if message.author.id not in chat_sessions:
                     chat_sessions[message.author.id] = model.start_chat(history=[])
                 
-                # แกล้งคิดนิดนึงตามความยาวข้อความ
-                wait_time = min(len(message.content) * 0.1, 3)
-                await asyncio.sleep(wait_time)
-                
+                # ส่งข้อความไปประมวลผล
                 response = chat_sessions[message.author.id].send_message(message.content)
-                await message.reply(response.text)
+                
+                # เช็คว่ามีคำตอบกลับมาไหม (เผื่อโดนระบบใหญ่ของ Google บล็อกจริงๆ)
+                if response.parts:
+                    await message.reply(response.text)
+                else:
+                    await message.reply("โหพี่ คำนี้มันแรงจนกูไปไม่เป็นเลยว่ะ (โดนระบบใหญ่ดีด) ลองคำอื่นดิ๊!")
+
             except Exception as e:
                 print(f"Gemini Error: {e}")
-                await message.reply("สมองตึงจัด... พิมพ์ใหม่ดิพี่ชายเมื่อกี้ประมวลผลไม่ทัน")
+                # ถ้าพังบ่อยๆ ให้ลองเช็ค Logs ใน Render นะครับ
+                await message.reply("สมองช็อตแป๊บ... พิมพ์ใหม่ดิ๊เมื่อกี้มึนๆ")
 
     await bot.process_commands(message)
 
-# --- ⏱️ คำสั่ง !time และ !tops ---
+# --- ⏱️ คำสั่งเช็คเวลา ---
 @bot.command()
 async def time(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -103,7 +118,7 @@ async def tops(ctx):
         embed.add_field(name=f"#{i+1} {name}", value=str(val).split('.')[0], inline=False)
     await ctx.send(embed=embed)
 
-# --- 🧧 คำสั่ง !topup (DM Forward) ---
+# --- 🧧 คำสั่ง !topup ---
 @bot.command()
 async def topup(ctx, link: str):
     if "gift.truemoney.com" not in link:
@@ -117,46 +132,36 @@ async def topup(ctx, link: str):
 
     try:
         owner = await bot.fetch_user(int(owner_id_env))
-        
         embed = discord.Embed(title="🧧 มีซองใหม่มาครับ!", color=0x00ff00)
-        embed.add_field(name="จาก", value=f"{ctx.author.name} ({ctx.author.id})")
+        embed.add_field(name="จาก", value=f"{ctx.author.name}")
         embed.add_field(name="ลิ้งก์ซอง", value=link)
-        
         await owner.send(embed=embed)
-        await owner.send(link) # ส่งแยกให้กดง่าย
-
+        await owner.send(link)
         await ctx.message.delete()
-        await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองเรียบร้อย! รอเจ้าของตรวจสอบครับ")
+        await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองเรียบร้อย! รอเจ้าของเช็คครับ")
     except Exception as e:
-        print(f"DM Error: {e}")
-        await ctx.reply("❌ บอทส่ง DM หาเจ้าของไม่ได้ (ลองเช็คว่าบอสเปิด DM หรือยัง)")
+        await ctx.reply("❌ บอทส่ง DM หาบอสไม่ได้ว่ะพี่")
 
 # --- 🎙️ Voice Events ---
 @bot.event
 async def on_voice_state_update(member, before, after):
     if member.bot: return
-    # เข้าห้อง
     if before.channel is None and after.channel is not None:
         voice_start[member.id] = datetime.datetime.now()
-    # ออกห้อง
     elif before.channel is not None and after.channel is None:
         if member.id in voice_start:
             start = voice_start.pop(member.id)
             duration = datetime.datetime.now() - start
-            if member.id not in voice_total:
-                voice_total[member.id] = datetime.timedelta()
+            if member.id not in voice_total: voice_total[member.id] = datetime.timedelta()
             voice_total[member.id] += duration
             save_data()
 
 @bot.event
 async def on_ready():
     load_data()
-    print(f'✅ บอท {bot.user} ออนไลน์พร้อมสมอง Gemini และระบบจับเวลา!')
+    print(f'✅ บอท {bot.user} ออนไลน์พร้อมสมอง Gemini สายโหด!')
 
-# --- รันบอท ---
 keep_alive()
 TOKEN = os.getenv('TOKEN')
 if TOKEN:
     bot.run(TOKEN)
-else:
-    print("❌ ไม่พบ TOKEN ใน Environment Variable!")

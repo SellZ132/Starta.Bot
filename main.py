@@ -27,7 +27,7 @@ if GEMINI_KEY:
     }
 
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash", 
+        model_name="gemini-1.5-flash-latest", 
         system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงประจำเซิร์ฟเวอร์ดิสคอร์ด ปากหมา กวนตีน ใช้คำหยาบได้ (กู, มึง) ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
         safety_settings=safety_settings
     )

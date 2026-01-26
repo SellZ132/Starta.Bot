@@ -24,8 +24,9 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash", # เลือกใช้รุ่นที่ปรากฏใน !listmodels
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้คำหยาบได้",
+        # ใช้ชื่อนี้เลยครับ มีใน !listmodels แน่นอน และโควตาน่าจะเยอะกว่า 2.0
+        model_name="gemini-flash-latest", 
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -33,7 +34,6 @@ if GEMINI_KEY:
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
     )
-
 # --- 🔍 3. คำสั่งต่างๆ (ต้องอยู่ใต้การสร้าง bot) ---
 @bot.command()
 async def listmodels(ctx):

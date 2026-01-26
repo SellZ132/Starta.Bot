@@ -8,20 +8,23 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
 from keep_alive import keep_alive
 
-# --- 🧠 ประกาศตัวแปร Global (ห้ามย้ายไปไหน) ---
+# --- 🧠 ประกาศตัวแปร Global ---
 chat_sessions = {} 
 model = None
 
-# --- 🧠 ตั้งค่า Gemini AI (ฉบับจบปัญหาสุดท้าย) ---
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+# --- 🤖 1. สร้างตัว Bot ก่อน (ต้องอยู่บนสุด!) ---
+intents = discord.Intents.default()
+intents.message_content = True
+intents.voice_states = True
+intents.members = True 
+bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้องเสียง & ด่าคน 🕵️🔥"))
 
+# --- 🧠 2. ตั้งค่า Gemini AI ---
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
-    # บังคับให้ใช้ API ตัวล่าสุด
     genai.configure(api_key=GEMINI_KEY)
-    
-    # ลองใช้รุ่นที่เสถียรที่สุดของประตูบานนี้
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash", # ห้ามใส่ latest หรือ v1beta
+        model_name="gemini-1.5-flash",
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -31,7 +34,7 @@ if GEMINI_KEY:
         ]
     )
 
-# --- 🔍 คำสั่งใหม่เอาไว้เช็ครุ่น (พิมพ์ !listmodels ในดิส) ---
+# --- 🔍 3. คำสั่งต่างๆ (ต้องอยู่ใต้การสร้าง bot) ---
 @bot.command()
 async def listmodels(ctx):
     try:
@@ -40,14 +43,6 @@ async def listmodels(ctx):
         await ctx.send(msg)
     except Exception as e:
         await ctx.send(f"❌ เช็คไม่ได้เพราะ: {e}")
-
-# --- 🤖 ตั้งค่า Discord Bot ---
-intents = discord.Intents.default()
-intents.message_content = True
-intents.voice_states = True
-intents.members = True 
-
-bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้องเสียง & ด่าคน 🕵️🔥"))
 
 DATA_FILE = "time_data.json"
 voice_start = {}
@@ -73,12 +68,11 @@ def save_data():
     except Exception as e:
         print(f"⚠️ บันทึกข้อมูลพลาด: {e}")
 
-# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini สายโหด) ---
+# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini) ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
 
-    # ตอบเฉพาะห้องนี้: 1465350210543947971
     TARGET_CHANNEL_ID = 1465350210543947971
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
         if model is None:
@@ -87,11 +81,9 @@ async def on_message(message):
 
         async with message.channel.typing():
             try:
-                # ตรวจสอบประวัติการคุย
                 if message.author.id not in chat_sessions:
                     chat_sessions[message.author.id] = model.start_chat(history=[])
                 
-                # ส่งข้อความไปด่าคืน
                 response = chat_sessions[message.author.id].send_message(message.content)
                 
                 if response.parts:
@@ -101,7 +93,6 @@ async def on_message(message):
 
             except Exception as e:
                 print(f"🔥 Gemini Error: {e}")
-                # ถ้า Error 404 อีก ให้แจ้งบอสตรงๆ
                 await message.reply(f"💢 สมองช็อตว่ะ Error: {e}")
 
     await bot.process_commands(message)

@@ -158,7 +158,9 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    print(f'✅ บอท {bot.user} พร้อมออกรบ!')
+    # เพิ่มบรรทัดนี้เข้าไป!
+    print(f"✅ บอทตื่นแล้ว! รุ่นที่กำลังใช้คือ: {model.model_name}")
+    print(f"✅ บอท {bot.user} พร้อมออกรบ!")
 
 keep_alive()
 TOKEN = os.getenv('TOKEN')

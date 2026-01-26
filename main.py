@@ -24,8 +24,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        # ใช้รุ่น Experimental หวังว่า Google จะใจดีกับรุ่นทดลอง
-        model_name="gemini-2.0-flash-exp", 
+        # ลองใช้รุ่นตำนาน exp-1206 (ความหวังหมู่บ้าน)
+        model_name="gemini-exp-1206", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้ภาษาวัยรุ่น หยาบคายได้เต็มที่ ไม่ต้องสุภาพ ไม่ต้องเกรงใจใคร",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

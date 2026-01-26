@@ -25,7 +25,7 @@ if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
         # เติมคอมม่า (,) ที่ท้ายบรรทัดข้างล่างนี้ครับ
-        model_name="gemini-2.0-flash-lite", 
+        model_name="gemini-flash-latest", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

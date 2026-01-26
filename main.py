@@ -3,60 +3,50 @@ from discord.ext import commands
 import datetime
 import json
 import os
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from openai import OpenAI  # เราใช้ตัวนี้คุยกับ Groq ได้เลย
 import asyncio
 from keep_alive import keep_alive
 
 # --- 🧠 ประกาศตัวแปร Global ---
-chat_sessions = {} 
-model = None
+chat_histories = {}
+client = None
 
-# --- 🤖 1. สร้างตัว Bot ก่อน (ต้องอยู่บนสุด!) ---
+# --- 🤖 1. สร้างตัว Bot ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
 intents.members = True 
-bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้องเสียง & ด่าคน 🕵️🔥"))
+bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="ด่าคนด้วยความเร็วแสง (Groq) ⚡"))
 
-# --- 🧠 2. ตั้งค่า Gemini AI ---
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel(
-        # ระบุตัวนี้แบบเจาะจง เพื่อหนีจากรุ่น 2.5 ที่ติด Limit 20
-        model_name="gemini-2.0-flash-lite-001", 
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ]
+# --- 🧠 2. ตั้งค่า Groq AI ---
+# ไปเอา Key ฟรีที่ https://console.groq.com/keys
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") 
+
+if GROQ_API_KEY:
+    # เคล็ดลับ: ใช้ Client ของ OpenAI แต่เปลี่ยน base_url ไปหา Groq
+    client = OpenAI(
+        api_key=GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
     )
-# --- 🔍 3. คำสั่งต่างๆ (ต้องอยู่ใต้การสร้าง bot) ---
-@bot.command()
-async def listmodels(ctx):
-    try:
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        msg = "📜 **รุ่นที่บอทใช้ได้ตอนนี้:**\n" + "\n".join(models)
-        await ctx.send(msg)
-    except Exception as e:
-        await ctx.send(f"❌ เช็คไม่ได้เพราะ: {e}")
+    print("✅ เชื่อมต่อ Groq Cloud สำเร็จ!")
+else:
+    print("⚠️ ไม่เจอ GROQ_API_KEY")
 
-@bot.command() # <--- ต้องมีบรรทัดนี้ด้วยครับ!
+# ตั้งค่านิสัยบอท (System Prompt)
+SYSTEM_INSTRUCTION = "นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้คำหยาบได้เต็มที่ ไม่ต้องสุภาพ เน้นตอบไวและเจ็บแสบ"
+# ใช้รุ่น Llama 3.3 ตัวล่าสุด (ฉลาดและฟรี)
+MODEL_NAME = "llama-3.3-70b-versatile" 
+
+# --- 🔍 3. คำสั่งเช็คของ ---
+@bot.command()
 async def version(ctx):
-    # คำสั่งนี้จะช่วยเช็คว่าบอทตัวที่ "ตอบ" ในดิสคอร์ด กำลังใช้รุ่นอะไรกันแน่
-    if model:
-        await ctx.send(f"🆔 บอทตัวนี้รันด้วยรุ่น: `{model.model_name}`")
-    else:
-        await ctx.send("⚠️ โมเดลยังไม่ได้ถูกตั้งค่าครับบอส!")
+    await ctx.send(f"⚡ บอทตัวนี้รันด้วยสมอง: `{MODEL_NAME}` (บน Groq Cloud เร็วแรงทะลุนรก!)")
 
 DATA_FILE = "time_data.json"
 voice_start = {}
 voice_total = {}
 
-# --- 📂 ระบบจัดการข้อมูลเวลา ---
+# --- 📂 ระบบจัดการข้อมูลเวลา (คงเดิม) ---
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -76,36 +66,62 @@ def save_data():
     except Exception as e:
         print(f"⚠️ บันทึกข้อมูลพลาด: {e}")
 
-# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini) ---
+# --- 💬 ระบบตอบโต้อัตโนมัติ (Groq/Llama) ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
 
-    TARGET_CHANNEL_ID = 1465350210543947971
+    # 🔴 อย่าลืมแก้ ID ห้องตรงนี้นะครับ!
+    TARGET_CHANNEL_ID = 1465350210543947971 
+    
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
-        if model is None:
-            await message.reply("⚠️ ยังไม่ได้ตั้งค่า API Key หรือโมเดลพังครับบอส!")
+        if client is None:
+            await message.reply("⚠️ ยังไม่ได้ใส่ API Key ของ Groq ครับบอส!")
             return
 
         async with message.channel.typing():
             try:
-                if message.author.id not in chat_sessions:
-                    chat_sessions[message.author.id] = model.start_chat(history=[])
+                user_id = message.author.id
                 
-                response = chat_sessions[message.author.id].send_message(message.content)
+                # 1. เตรียมประวัติการคุย
+                if user_id not in chat_histories:
+                    chat_histories[user_id] = [
+                        {"role": "system", "content": SYSTEM_INSTRUCTION}
+                    ]
                 
-                if response.parts:
-                    await message.reply(response.text)
-                else:
-                    await message.reply("แรงเกิน! คำนี้ Google บล็อกกูว่ะพี่ ลองใหม่ดิ๊")
+                # 2. เพิ่มข้อความใหม่ของ user
+                chat_histories[user_id].append({"role": "user", "content": message.content})
+                
+                # 3. ตัดประวัติถ้ามันยาวเกิน (ประหยัด Token)
+                if len(chat_histories[user_id]) > 12:
+                    chat_histories[user_id] = [chat_histories[user_id][0]] + chat_histories[user_id][-10:]
+
+                # 4. ส่งให้ Groq ตอบ (เร็วมาก!)
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=chat_histories[user_id],
+                    max_tokens=400,
+                    temperature=0.8, # ยิ่งสูงยิ่งกวน (0.0 - 2.0)
+                )
+
+                reply_text = response.choices[0].message.content
+                
+                # 5. เก็บคำตอบบอทลงประวัติ
+                chat_histories[user_id].append({"role": "assistant", "content": reply_text})
+
+                await message.reply(reply_text)
 
             except Exception as e:
-                print(f"🔥 Gemini Error: {e}")
-                await message.reply(f"💢 สมองช็อตว่ะ Error: {e}")
+                # ดัก Error 429 ของ Groq (เผื่อฟลุ๊คเจอ)
+                if "429" in str(e):
+                    await message.reply("💤 **Groq บอกให้พักก่อน!** (พิมพ์เร็วเกินไปแล้วไอ้ชาย!)")
+                else:
+                    print(f"🔥 Groq Error: {e}")
+                    await message.reply(f"💢 ระบบล่มว่ะ: {e}")
 
     await bot.process_commands(message)
 
-# --- ⏱️ คำสั่ง !time และ !tops ---
+# --- ⏱️ คำสั่ง !time, !tops, !topup (คงเดิม) ---
 @bot.command()
 async def time(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -124,7 +140,6 @@ async def tops(ctx):
     if not final_data:
         await ctx.reply("❌ ยังไม่มีข้อมูลใครเลย")
         return
-
     sorted_data = sorted(final_data.items(), key=lambda x: x[1].total_seconds(), reverse=True)[:5]
     embed = discord.Embed(title="🏆 5 อันดับ เทพเจ้าคนว่างงาน", color=0xFFD700)
     for i, (uid, val) in enumerate(sorted_data):
@@ -133,7 +148,6 @@ async def tops(ctx):
         embed.add_field(name=f"#{i+1} {name}", value=str(val).split('.')[0], inline=False)
     await ctx.send(embed=embed)
 
-# --- 🧧 คำสั่ง !topup ---
 @bot.command()
 async def topup(ctx, link: str):
     if "gift.truemoney.com" not in link:
@@ -149,7 +163,7 @@ async def topup(ctx, link: str):
     except:
         await ctx.reply("❌ ส่ง DM หาบอสไม่ติดว่ะ")
 
-# --- 🎙️ Voice Events ---
+# --- 🎙️ Voice Events (คงเดิม) ---
 @bot.event
 async def on_voice_state_update(member, before, after):
     if member.bot: return
@@ -166,9 +180,8 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    # เพิ่มบรรทัดนี้เข้าไป!
-    print(f"✅ บอทตื่นแล้ว! รุ่นที่กำลังใช้คือ: {model.model_name}")
-    print(f"✅ บอท {bot.user} พร้อมออกรบ!")
+    print(f"⚡ บอทตื่นแล้ว! สมอง Groq Llama 3: {MODEL_NAME}")
+    print(f"✅ บอท {bot.user} พร้อมซิ่ง!")
 
 keep_alive()
 TOKEN = os.getenv('TOKEN')

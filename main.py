@@ -8,22 +8,28 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
 from keep_alive import keep_alive
 
-# --- 🧠 ตั้งค่า Gemini AI (ฉบับแก้ 404) ---
+# --- 🧠 ประกาศตัวแปร Global (ห้ามย้ายไปไหน) ---
+chat_sessions = {} 
+model = None
+
+# --- 🧠 ตั้งค่า Gemini AI ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     
-    # แก้จุดนี้: ลองใช้ชื่อรุ่นแบบระบุชัดเจน หรือรุ่นที่เสถียรกว่า
+    # ปรับจูน Safety เพื่อให้ด่ากลับได้ตึงๆ
+    safety_settings = {
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
+
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash", # ถ้ายัง 404 ให้ลองเปลี่ยนเป็น "gemini-1.5-flash-latest"
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้คำหยาบได้",
-        safety_settings={
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
+        model_name="gemini-1.5-flash", 
+        system_instruction="นายคือ 'น้อนบอท' บอทสุดตึงประจำเซิร์ฟเวอร์ดิสคอร์ด ปากหมา กวนตีน ใช้คำหยาบได้ (กู, มึง) ใครด่ามาด่ากลับให้ยับ อย่าเป็นเด็กดีจนน่าเบื่อ",
+        safety_settings=safety_settings
     )
 
 # --- 🤖 ตั้งค่า Discord Bot ---
@@ -32,7 +38,7 @@ intents.message_content = True
 intents.voice_states = True
 intents.members = True 
 
-bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้อง & ด่าคน 🕵️🔥"))
+bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้องเสียง & ด่าคน 🕵️🔥"))
 
 DATA_FILE = "time_data.json"
 voice_start = {}
@@ -47,37 +53,47 @@ def load_data():
                 for user_id, seconds in data.items():
                     voice_total[int(user_id)] = datetime.timedelta(seconds=seconds)
             print("📂 โหลดข้อมูลเวลาเรียบร้อย!")
-        except: pass
+        except Exception as e:
+            print(f"⚠️ โหลดข้อมูลพลาด: {e}")
 
 def save_data():
     try:
         data = {str(k): v.total_seconds() for k, v in voice_total.items()}
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
-    except: pass
+    except Exception as e:
+        print(f"⚠️ บันทึกข้อมูลพลาด: {e}")
 
-# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini) ---
+# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini สายโหด) ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
 
+    # ตอบเฉพาะห้องนี้: 1465350210543947971
     TARGET_CHANNEL_ID = 1465350210543947971
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
         if model is None:
-            await message.reply("⚠️ บอส! ลืมใส่ API Key ใน Render หรือเปล่า?")
+            await message.reply("⚠️ ยังไม่ได้ตั้งค่า API Key หรือโมเดลพังครับบอส!")
             return
 
         async with message.channel.typing():
             try:
+                # ตรวจสอบประวัติการคุย
                 if message.author.id not in chat_sessions:
                     chat_sessions[message.author.id] = model.start_chat(history=[])
                 
-                await asyncio.sleep(1) # แกล้งคิด
+                # ส่งข้อความไปด่าคืน
                 response = chat_sessions[message.author.id].send_message(message.content)
-                await message.reply(response.text)
+                
+                if response.parts:
+                    await message.reply(response.text)
+                else:
+                    await message.reply("แรงเกิน! คำนี้ Google บล็อกกูว่ะพี่ ลองใหม่ดิ๊")
+
             except Exception as e:
-                print(f"Gemini Error: {e}")
-                await message.reply(f"💢 สมองช็อตเพราะ: {e}")
+                print(f"🔥 Gemini Error: {e}")
+                # ถ้า Error 404 อีก ให้แจ้งบอสตรงๆ
+                await message.reply(f"💢 สมองช็อตว่ะ Error: {e}")
 
     await bot.process_commands(message)
 
@@ -109,29 +125,21 @@ async def tops(ctx):
         embed.add_field(name=f"#{i+1} {name}", value=str(val).split('.')[0], inline=False)
     await ctx.send(embed=embed)
 
-# --- 🧧 คำสั่ง !topup (DM Forward) ---
+# --- 🧧 คำสั่ง !topup ---
 @bot.command()
 async def topup(ctx, link: str):
     if "gift.truemoney.com" not in link:
         await ctx.reply("❌ ลิ้งก์ไม่ถูกต้อง")
         return
-
-    owner_id_env = os.getenv('OWNER_ID')
-    if not owner_id_env:
-        await ctx.reply("⚠️ ยังไม่ได้ตั้ง OWNER_ID ใน Render")
-        return
-
+    owner_id = os.getenv('OWNER_ID')
+    if not owner_id: return
     try:
-        owner = await bot.fetch_user(int(owner_id_env))
-        embed = discord.Embed(title="🧧 มีซองใหม่มา!", color=0x00ff00)
-        embed.add_field(name="จาก", value=f"{ctx.author.name}")
-        embed.add_field(name="ลิ้งก์", value=link)
-        await owner.send(embed=embed)
-        await owner.send(link)
+        owner = await bot.fetch_user(int(owner_id))
+        await owner.send(f"🧧 **ซองใหม่จาก {ctx.author.name}!**\n{link}")
         await ctx.message.delete()
-        await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองสำเร็จ! รอเจ้าของเช็คครับ")
+        await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองเรียบร้อย! รอเจ้าของเช็คครับ")
     except:
-        await ctx.reply("❌ บอทส่ง DM หาบอสไม่ได้")
+        await ctx.reply("❌ ส่ง DM หาบอสไม่ติดว่ะ")
 
 # --- 🎙️ Voice Events ---
 @bot.event
@@ -150,7 +158,7 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    print(f'✅ บอท {bot.user} ออนไลน์พร้อมด่าคนแล้ว!')
+    print(f'✅ บอท {bot.user} พร้อมออกรบ!')
 
 keep_alive()
 TOKEN = os.getenv('TOKEN')

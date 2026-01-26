@@ -24,8 +24,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel(
-        # รุ่นนี้คือความหวังหมู่บ้าน เน้นโควตาเยอะและประหยัดทรัพยากร
-        model_name="gemini-flash-lite-latest", 
+        # ระบุตัวนี้แบบเจาะจง เพื่อหนีจากรุ่น 2.5 ที่ติด Limit 20
+        model_name="gemini-2.0-flash-lite-001", 
         system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

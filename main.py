@@ -29,7 +29,7 @@ else:
         }
     )
 
-# --- 💬 ส่วน on_message ---
+# --- 💬 ส่วน on_message (ฉบับนักสืบหา Error) ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
@@ -42,15 +42,30 @@ async def on_message(message):
 
         async with message.channel.typing():
             try:
+                # ตรวจสอบ session
                 if message.author.id not in chat_sessions:
                     chat_sessions[message.author.id] = model.start_chat(history=[])
                 
+                # ส่งข้อความ
                 response = chat_sessions[message.author.id].send_message(message.content)
-                await message.reply(response.text)
+                
+                # เช็คว่ามีคำตอบกลับมาไหม
+                if response and response.candidates and response.candidates[0].content.parts:
+                    await message.reply(response.text)
+                else:
+                    await message.reply("😶 เอ่อ... เหมือนคำนี้จะโดน Google บล็อกว่ะพี่ ลองคำอื่นดิ๊!")
+                    
             except Exception as e:
-                # บรรทัดนี้จะบอกเราใน Logs ว่าพังเพราะอะไรกันแน่
-                print(f"🔥 Gemini Error: {e}") 
-                await message.reply(f"สมองช็อตเพราะ: {e}") # ให้มันบ่น Error ออกมาเลยจะได้แก้ถูก
+                # --- จุดสำคัญ: ให้บอทบอกเลยว่า Error คืออะไร ---
+                error_msg = str(e)
+                print(f"🔥 Gemini Error: {error_msg}") 
+                
+                if "401" in error_msg or "API_KEY_INVALID" in error_msg:
+                    await message.reply("🔑 **[API Error]** พี่ชาย! API Key มันใช้ไม่ได้ ไปเช็คใน Google AI Studio ด่วน!")
+                elif "429" in error_msg:
+                    await message.reply("⏳ **[Quota Error]** ใจเย็นพี่ คนพิมพ์เยอะเกิน สมอง Gemini รับไม่ทันแล้ว!")
+                else:
+                    await message.reply(f"💢 **พังเฉย!** Error คือ: `{error_msg}`")
 
 # --- 🤖 ตั้งค่า Discord Bot ---
 intents = discord.Intents.default()

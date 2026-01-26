@@ -11,21 +11,46 @@ from keep_alive import keep_alive
 # --- 🧠 ตั้งค่า Gemini AI ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-# แก้ตรงนี้: ถ้าไม่มี Key ให้บอทแจ้งเตือนตอนรันเลย
 if not GEMINI_KEY:
-    print("❌ พังพินาศ! ลืมใส่ GEMINI_API_KEY ใน Render หรือเปล่าพี่ชาย?")
+    # ถ้าพัง บรรทัดนี้จะไปโผล่ใน Logs ของ Render
+    print("❌ ERROR: หากุญแจ GEMINI_API_KEY ไม่เจอในตู้เซฟ Render!")
+    model = None 
 else:
     genai.configure(api_key=GEMINI_KEY)
-    # นิยาม model ไว้ข้างนอกให้ชัดเจน
+    # นิยาม model ให้ชัดเจน
     model = genai.GenerativeModel(
         model_name="gemini-1.5-flash",
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ",
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้คำหยาบได้",
         safety_settings={
             "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
             "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+            "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+            "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
         }
     )
-chat_sessions = {}
+
+# --- 💬 ส่วน on_message ---
+@bot.event
+async def on_message(message):
+    if message.author.bot: return
+
+    TARGET_CHANNEL_ID = 1465350210543947971
+    if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
+        if model is None:
+            await message.reply("⚠️ บอสลืมใส่ API Key ให้ผมครับ ผมเลยยังไม่มีสมอง!")
+            return
+
+        async with message.channel.typing():
+            try:
+                if message.author.id not in chat_sessions:
+                    chat_sessions[message.author.id] = model.start_chat(history=[])
+                
+                response = chat_sessions[message.author.id].send_message(message.content)
+                await message.reply(response.text)
+            except Exception as e:
+                # บรรทัดนี้จะบอกเราใน Logs ว่าพังเพราะอะไรกันแน่
+                print(f"🔥 Gemini Error: {e}") 
+                await message.reply(f"สมองช็อตเพราะ: {e}") # ให้มันบ่น Error ออกมาเลยจะได้แก้ถูก
 
 # --- 🤖 ตั้งค่า Discord Bot ---
 intents = discord.Intents.default()

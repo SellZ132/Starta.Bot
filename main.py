@@ -146,36 +146,57 @@ async def tops(ctx):
             if count >= 5: break
     await ctx.send(embed=embed)
 
-# --- คำสั่ง !topup (ใหม่!) ---
-@bot.command()
-async def topup(ctx, link: str):
-    # ดึงเบอร์จาก Render
-    my_phone = os.getenv('PHONE') 
-    
-    if not my_phone:
-        await ctx.reply("⚠️ เจ้าของบอทยังไม่ได้ตั้งค่าเบอร์รับเงินใน Render ครับ!")
-        return
+# --- ฟังก์ชันแกะซอง TrueMoney (ฉบับอัปเกรด Debug) ---
+def redeem_gift(url, phone_number):
+    try:
+        # 1. หา Voucher ID
+        if "v=" in url:
+            voucher_id = url.split("v=")[1]
+        else:
+            return {"status": "error", "message": "❌ ลิ้งก์ไม่ถูกต้อง (ต้องมี v=...)"}
 
-    await ctx.reply("⏳ กำลังตรวจสอบซอง... รอแป๊บ")
-    
-    # ส่งลิ้งก์ไปเช็ค
-    result = redeem_gift(link, my_phone)
-    
-    if result['status'] == 'success':
-        amount = float(result['amount'])
-        sender = result['sender']
+        # 2. ตั้งค่า Header ให้เนียนขึ้น (เหมือนคนใช้ Chrome)
+        api_url = f"https://gift.truemoney.com/campaign/vouchers/{voucher_id}/redeem"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Content-Type": "application/json",
+            "Origin": "https://gift.truemoney.com",
+            "Referer": "https://gift.truemoney.com/"
+        }
+        payload = {
+            "mobile": phone_number,
+            "voucher_hash": voucher_id
+        }
         
-        await ctx.reply(f"✅ **เติมเงินสำเร็จ!**\n💰 ได้รับ: `{amount}` บาท\n👤 จาก: {sender}")
+        # 3. ยิงไปหา TrueMoney
+        print(f"กำลังยิงไปที่: {api_url}") # Debug 1
+        response = requests.post(api_url, headers=headers, json=payload, timeout=5)
         
-        # (Optional) แจกยศ VIP ถ้าเติมเกิน 50 บาท
-        if amount >= 50:
-            role = discord.utils.get(ctx.guild.roles, name="VIP")
-            if role:
-                await ctx.author.add_roles(role)
-                await ctx.send(f"🎉 คุณ {ctx.author.mention} ได้รับยศ **VIP** แล้ว!")
-                
-    else:
-        await ctx.reply(result['message'])
+        # --- เช็คผลลัพธ์แบบละเอียด ---
+        print(f"Status Code: {response.status_code}") # Debug 2
+        
+        # ถ้า Error ไม่ใช่ 200 (เช่น 403 Forbidden)
+        if response.status_code != 200:
+            print(f"Response Text: {response.text}") # Debug 3: ปริ้นท์สิ่งที่ TrueMoney ตอบกลับมา
+            return {"status": "error", "message": f"❌ TrueMoney ปฏิเสธ ({response.status_code}): บอทอาจจะโดนบล็อก IP"}
+
+        # ถ้าผ่าน ค่อยแปลงเป็น JSON
+        try:
+            result = response.json()
+        except Exception as e:
+            print(f"JSON Error: {response.text}") # ดูว่าส่งอะไรมาทำไมแปลงไม่ได้
+            return {"status": "error", "message": "❌ อ่านข้อมูลไม่ได้ (TrueMoney ส่ง HTML มา)"}
+        
+        if result['status']['code'] == 'SUCCESS':
+            amount = result['data']['my_ticket']['amount_baht']
+            sender = result['data']['owner_profile']['full_name']
+            return {"status": "success", "amount": amount, "sender": sender}
+        else:
+            return {"status": "error", "message": f"❌ เติมไม่เข้า: {result['status']['message']}"}
+
+    except Exception as e:
+        print(f"System Error: {str(e)}")
+        return {"status": "error", "message": f"❌ ระบบขัดข้อง: {str(e)}"}
 
 # --- เริ่มระบบ ---
 keep_alive()

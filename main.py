@@ -8,16 +8,16 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
 from keep_alive import keep_alive
 
-# --- 🧠 ตั้งค่า Gemini AI ---
+# --- 🧠 ตั้งค่า Gemini AI (ฉบับแก้ 404) ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-model = None
-chat_sessions = {} # <--- ต้องมีบรรทัดนี้!
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
+    
+    # แก้จุดนี้: ลองใช้ชื่อรุ่นแบบระบุชัดเจน หรือรุ่นที่เสถียรกว่า
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึงประจำเซิร์ฟเวอร์ นิสัยกวนๆ ขี้เล่น ตอบกระชับแบบวัยรุ่นไทย ใช้คำหยาบได้เต็มที่ (กู, มึง, ไอ้...) ใครด่ามาด่ากลับให้ตึง!",
+        model_name="gemini-1.5-flash", # ถ้ายัง 404 ให้ลองเปลี่ยนเป็น "gemini-1.5-flash-latest"
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้คำหยาบได้",
         safety_settings={
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,

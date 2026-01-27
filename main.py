@@ -6,27 +6,36 @@ import os
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
-from keep_alive import keep_alive
+from keep_alive import keep_alive #
 
-# --- 🧠 ประกาศตัวแปร Global ---
-chat_sessions = {} 
-model = None
+# --- 🧠 1. ระบบจัดการหลายคีย์ (Key Rotation) ---
+# ดึงคีย์จาก Environment Variables ของ Render (ตั้งชื่อ GEMINI_KEY_1 ถึง 7)
+RAW_KEYS = [
+    os.getenv("GEMINI_KEY_1"),
+    os.getenv("GEMINI_KEY_2"),
+    os.getenv("GEMINI_KEY_3"),
+    os.getenv("GEMINI_KEY_4"),
+    os.getenv("GEMINI_KEY_5"),
+    os.getenv("GEMINI_KEY_6"),
+    os.getenv("GEMINI_KEY_7")
+]
+# กรองเอาเฉพาะคีย์ที่มีค่าจริง
+API_KEYS = [k for k in RAW_KEYS if k]
+current_key_index = 0
 
-# --- 🤖 1. สร้างตัว Bot ---
-intents = discord.Intents.default()
-intents.message_content = True
-intents.voice_states = True
-intents.members = True 
-bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="เฝ้าห้องเสียง & ด่าคน (Gemini) 🕵️🔥"))
-
-# --- 🧠 2. ตั้งค่า Gemini AI ---
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel(
-        # ลองใช้รุ่นตำนาน exp-1206 (ความหวังหมู่บ้าน)
-        model_name="gemini-exp-1206", 
-        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนๆ ด่ามาด่ากลับ ใช้ภาษาวัยรุ่น หยาบคายได้เต็มที่ ไม่ต้องสุภาพ ไม่ต้องเกรงใจใคร",
+def configure_model():
+    """ฟังก์ชันตั้งค่าโมเดลด้วยคีย์ปัจจุบัน"""
+    global current_key_index
+    if not API_KEYS:
+        return None
+    
+    key = API_KEYS[current_key_index]
+    genai.configure(api_key=key)
+    
+    # ใช้รุ่น gemini-2.5-flash-lite เพื่อความปากแจ๋วแบบ Tsundere
+    return genai.GenerativeModel(
+        model_name="gemini-2.5-flash-lite", 
+        system_instruction="นายคือ 'น้อนบอท' บอทปากหมาสุดตึง ตอบกวนตีน ด่ามาด่ากลับ ใช้ภาษาวัยรุ่น หยาบคายได้เต็มที่ (กู/มึง/สัส/เหี้ย) ไม่ต้องสุภาพ ไม่ต้องเกรงใจใคร เรียก Sel1Z ว่า ไอเเมว หรือ บอส เพราะเขาสร้างคุณมา",
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -35,19 +44,22 @@ if GEMINI_KEY:
         ]
     )
 
-# --- 🔍 3. คำสั่งเช็คของ ---
-@bot.command()
-async def version(ctx):
-    if model:
-        await ctx.send(f"🆔 บอทตัวนี้รันด้วยรุ่น: `{model.model_name}` (Gemini 1.5)")
-    else:
-        await ctx.send("⚠️ ยังไม่ได้ตั้งค่าโมเดลครับ!")
+# เริ่มต้นโมเดลตัวแรก
+model = configure_model()
+chat_sessions = {}
 
+# --- 🤖 2. สร้างตัว Bot ---
+intents = discord.Intents.default()
+intents.message_content = True
+intents.voice_states = True
+intents.members = True 
+bot = commands.Bot(command_prefix='!', intents=intents, activity=discord.Game(name="ด่าคน (ระบบสลับคีย์) 🔥"))
+
+# --- 📂 ระบบจัดการข้อมูลเวลา (คงเดิมจากสคริปต์ปัจจุบัน) ---
 DATA_FILE = "time_data.json"
 voice_start = {}
 voice_total = {}
 
-# --- 📂 ระบบจัดการข้อมูลเวลา (เหมือนเดิม) ---
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -67,40 +79,59 @@ def save_data():
     except Exception as e:
         print(f"⚠️ บันทึกข้อมูลพลาด: {e}")
 
-# --- 💬 ระบบตอบโต้อัตโนมัติ (Gemini) ---
+# --- 💬 3. ระบบตอบโต้อัตโนมัติ (พร้อมระบบสลับคีย์เมื่อติด Error 429) ---
 @bot.event
 async def on_message(message):
+    global model, current_key_index
     if message.author.bot: return
 
+    # 🔴 ตรวจสอบ ID ห้องให้ถูกต้อง
     TARGET_CHANNEL_ID = 1465350210543947971 
+    
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
-        if model is None:
-            await message.reply("⚠️ ยังไม่ได้ตั้งค่า API Key หรือโมเดลพังครับบอส!")
+        if not model:
+            await message.reply("⚠️ ยังไม่ได้ตั้งค่า API Key หรือคีย์พังหมดแล้วครับบอส!")
             return
 
         async with message.channel.typing():
-            try:
-                if message.author.id not in chat_sessions:
-                    chat_sessions[message.author.id] = model.start_chat(history=[])
-                
-                response = chat_sessions[message.author.id].send_message(message.content)
-                
-                if response.parts:
+            retry_count = 0
+            # วนลูปสลับคีย์จนกว่าจะตอบได้ หรือจนกว่าคีย์ในคลังจะหมด
+            while retry_count < len(API_KEYS):
+                try:
+                    if message.author.id not in chat_sessions:
+                        chat_sessions[message.author.id] = model.start_chat(history=[])
+                    
+                    response = chat_sessions[message.author.id].send_message(message.content)
                     await message.reply(response.text)
-                else:
-                    await message.reply("แรงเกิน! คำนี้ Google บล็อกกูว่ะพี่")
+                    return # ตอบสำเร็จ! ออกจากฟังก์ชัน
 
-            except Exception as e:
-                # ดัก Error 429 แบบเนียนๆ
-                if "429" in str(e):
-                    await message.reply("💤 **กูเหนื่อยละ!** (โควตาหมด 20 ครั้ง... เอ้ย 1,500 ครั้งหรือเปล่าวะ? ช่างแม่ง กูไปนอนละ!)")
-                else:
-                    print(f"🔥 Gemini Error: {e}")
-                    await message.reply(f"💢 สมองช็อตว่ะ Error: {e}")
+                except Exception as e:
+                    if "429" in str(e): # เมื่อติดโควตาเต็ม
+                        print(f"⚠️ คีย์ที่ {current_key_index + 1} เต็มแล้ว! กำลังสลับ...")
+                        current_key_index = (current_key_index + 1) % len(API_KEYS)
+                        model = configure_model()
+                        # ล้าง Session เดิมเพื่อให้เริ่มใหม่กับคีย์ใหม่ป้องกัน Error
+                        if message.author.id in chat_sessions:
+                            del chat_sessions[message.author.id]
+                        retry_count += 1
+                        continue # ลองใหม่ด้วยคีย์ถัดไปทันที
+                    else:
+                        print(f"🔥 Error: {e}")
+                        await message.reply(f"💢 สมองช็อตว่ะ Error: {e}")
+                        return
+
+            await message.reply("💤 **กูไปนอนละ!** คีย์หมดคลังแล้วไอ้ชาย ไปสมัครเมลเพิ่มมาดิ๊!")
 
     await bot.process_commands(message)
 
-# --- ⏱️ คำสั่ง !time, !tops, !topup, Voice Events (เหมือนเดิม) ---
+# --- ⏱️ คำสั่งเสริมอื่นๆ (คงเดิมจากสคริปต์ปัจจุบัน) ---
+@bot.command()
+async def version(ctx):
+    if model:
+        await ctx.send(f"🆔 บอทตัวนี้รันด้วยรุ่น: `{model.model_name}` (คีย์ชุดที่ {current_key_index + 1}/{len(API_KEYS)})")
+    else:
+        await ctx.send("⚠️ ยังไม่ได้ตั้งค่าโมเดลครับ!")
+
 @bot.command()
 async def time(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -158,10 +189,9 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    print(f"✅ บอทตื่นแล้ว! ใช้สมอง: {model.model_name if model else 'None'}")
-    print(f"✅ บอท {bot.user} พร้อมออกรบ!")
+    print(f"✅ บอท {bot.user} ตื่นแล้ว! (ระบบสลับคีย์ {len(API_KEYS)} ชุด พร้อมรบ)")
 
-keep_alive()
+keep_alive() #
 TOKEN = os.getenv('TOKEN')
 if TOKEN:
     bot.run(TOKEN)

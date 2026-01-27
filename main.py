@@ -23,39 +23,26 @@ chat_histories = {}
 
 # --- 💢 ตัวแปรสำหรับระบบ Mood (อารมณ์) ---
 last_boss_interaction = time.time()  # เวลาล่าสุดที่ Sel1Z ทัก
-message_count = 0  # นับจำนวนข้อความเพื่อเช็คความวุ่นวาย
+message_count = 0  
 last_count_reset = time.time()
 
 def get_current_mood():
-    """คำนวณอารมณ์ของบอท ณ ปัจจุบัน"""
-    global last_boss_interaction, message_count, last_count_reset
-    
-    # ใช้ time.time() ได้แล้ว เพราะไม่โดนทับชื่อ
     current_time = time.time()
-    
-    # 1. เช็คความเหงา (ถ้าบอสไม่ทักเกิน 6 ชม.)
     hours_since_boss = (current_time - last_boss_interaction) / 3600
     if hours_since_boss > 6:
         return "เหงา (ปากแข็ง บอกว่าไม่ได้รอเจ้านายหนูนะ แต่จริงๆ แอบรออยู่)"
-    
-    # 2. เช็คความรำคาญ (ถ้าคนสแปมเยอะเกิน 15 ข้อความ/นาที)
     if current_time - last_count_reset > 60:
         message_count = 0
         last_count_reset = current_time
     if message_count > 15:
         return "หงุดหงิด (คนเยอะน่ารำคาญ อยากไล่ไปให้พ้นๆ ตอบสั้นและวีนแรง)"
-    
     return "ปกติ (ซึนเดเระตามสไตล์)"
 
 def configure_model():
-    """ตั้งค่าคีย์และ System Instruction แบบ Dynamic"""
     global current_key_index
     if not API_KEYS: return None
-    
     genai.configure(api_key=API_KEYS[current_key_index])
-    
     mood = get_current_mood()
-    
     instruction = (
         "นายคือ 'น้อนบอท' (StartaBot) บอทสาว Tsundere ที่ฉลาดและรู้จักแยกแยะคน\n"
         "[กฎการวิเคราะห์คนคุย]:\n"
@@ -111,7 +98,7 @@ def save_data():
             json.dump(data, f, indent=4)
     except: pass
 
-# --- 💬 3. ระบบตอบโต้ (Vision + Mood + Memory + Analysis) ---
+# --- 💬 3. ระบบตอบโต้ ---
 @bot.event
 async def on_message(message):
     global model, current_key_index, last_boss_interaction, message_count
@@ -129,12 +116,10 @@ async def on_message(message):
             while retry_count < len(API_KEYS):
                 try:
                     model = configure_model()
-                    
                     if message.author.id not in chat_histories:
                         chat_histories[message.author.id] = []
                     
                     chat = model.start_chat(history=chat_histories[message.author.id])
-                    
                     prompt_parts = [f"[ชื่อคนคุย: {message.author.name}]: {message.content or 'ส่องรูปนี้หน่อย'}"]
                     
                     if message.attachments:
@@ -146,7 +131,6 @@ async def on_message(message):
 
                     response = chat.send_message(prompt_parts)
                     chat_histories[message.author.id] = chat.history[-15:]
-
                     await message.reply(response.text)
                     return
 
@@ -158,20 +142,17 @@ async def on_message(message):
                     else:
                         await message.reply(f"💢 สมองช็อตว่ะ: {e}")
                         return
-
             await message.reply("💤 คีย์หมดคลังแล้ว ไปสมัครเมลเพิ่มสิไอ้บอส!")
 
     await bot.process_commands(message)
 
-# --- ⏱️ 4. คำสั่งต่างๆ (แก้ชื่อฟังก์ชันแล้ว) ---
+# --- ⏱️ 4. คำสั่งต่างๆ ---
 
 @bot.command()
 async def version(ctx):
     mood = get_current_mood()
     await ctx.send(f"🆔 รุ่น: `Gemini 2.5 Flash Lite` | คีย์: {current_key_index + 1}/{len(API_KEYS)}\n💢 อารมณ์: {mood}")
 
-# 🔥 แก้ชื่อฟังก์ชันจาก time เป็น voice_time เพื่อไม่ให้ชนกับ library time
-# แต่ยังใช้คำสั่ง !time ได้เหมือนเดิมเพราะใส่ name="time" ไว้
 @bot.command(name="time")
 async def voice_time(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -197,20 +178,33 @@ async def tops(ctx):
         embed.add_field(name=f"#{i+1} {name}", value=str(val).split('.')[0], inline=False)
     await ctx.send(embed=embed)
 
+# 🔥 แก้ไข: ระบบส่งซองหา Owner 2 คน
 @bot.command()
 async def topup(ctx, link: str):
     if "gift.truemoney.com" not in link:
         await ctx.reply("❌ ลิ้งก์ไม่ถูกต้อง")
         return
-    owner_id = os.getenv('OWNER_ID')
-    if not owner_id: return
-    try:
-        owner = await bot.fetch_user(int(owner_id))
-        await owner.send(f"🧧 **ซองใหม่จาก {ctx.author.name}!**\n{link}")
+    
+    owner_ids_raw = os.getenv('OWNER_ID')
+    if not owner_ids_raw: return
+    
+    # แยก ID ออกมาเป็นลิสต์
+    owner_ids = [oid.strip() for oid in owner_ids_raw.split(',')]
+    
+    success = False
+    for oid in owner_ids:
+        try:
+            owner = await bot.fetch_user(int(oid))
+            await owner.send(f"🧧 **ซองใหม่จาก {ctx.author.name}!**\n{link}")
+            success = True
+        except Exception as e:
+            print(f"⚠️ ส่งหา {oid} ไม่ได้: {e}")
+
+    if success:
         await ctx.message.delete()
         await ctx.send(f"✅ คุณ {ctx.author.mention} ส่งซองเรียบร้อย! รอเจ้าของเช็คครับ")
-    except:
-        await ctx.reply("❌ ส่ง DM หาบอสไม่ติดว่ะ")
+    else:
+        await ctx.reply("❌ ส่ง DM หาบอสไม่ติดเลยสักคนว่ะ")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -228,7 +222,7 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    print(f"✅ บอท {bot.user} ตื่นแล้ว! (Vision + Mood + No Bug)")
+    print(f"✅ บอท {bot.user} พร้อมรับซองส่งให้บอสทั้งสองแล้ว!")
 
 keep_alive()
 TOKEN = os.getenv('TOKEN')

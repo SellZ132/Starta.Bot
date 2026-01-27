@@ -30,15 +30,18 @@ def get_current_mood():
     """คำนวณอารมณ์ของบอท ณ ปัจจุบัน"""
     global last_boss_interaction, message_count, last_count_reset
     
+    # ใช้ time.time() ได้แล้ว เพราะไม่โดนทับชื่อ
+    current_time = time.time()
+    
     # 1. เช็คความเหงา (ถ้าบอสไม่ทักเกิน 6 ชม.)
-    hours_since_boss = (time.time() - last_boss_interaction) / 3600
+    hours_since_boss = (current_time - last_boss_interaction) / 3600
     if hours_since_boss > 6:
         return "เหงา (ปากแข็ง บอกว่าไม่ได้รอเจ้านายหนูนะ แต่จริงๆ แอบรออยู่)"
     
     # 2. เช็คความรำคาญ (ถ้าคนสแปมเยอะเกิน 15 ข้อความ/นาที)
-    if time.time() - last_count_reset > 60:
+    if current_time - last_count_reset > 60:
         message_count = 0
-        last_count_reset = time.time()
+        last_count_reset = current_time
     if message_count > 15:
         return "หงุดหงิด (คนเยอะน่ารำคาญ อยากไล่ไปให้พ้นๆ ตอบสั้นและวีนแรง)"
     
@@ -49,12 +52,10 @@ def configure_model():
     global current_key_index
     if not API_KEYS: return None
     
-    # สลับคีย์
     genai.configure(api_key=API_KEYS[current_key_index])
     
     mood = get_current_mood()
     
-    # 🔥 รวมร่างคำสั่ง: วิเคราะห์คน + อารมณ์ + กฎเหล็ก
     instruction = (
         "นายคือ 'น้อนบอท' (StartaBot) บอทสาว Tsundere ที่ฉลาดและรู้จักแยกแยะคน\n"
         "[กฎการวิเคราะห์คนคุย]:\n"
@@ -119,7 +120,6 @@ async def on_message(message):
     TARGET_CHANNEL_ID = 1465350210543947971 
     
     if message.channel.id == TARGET_CHANNEL_ID and not message.content.startswith('!'):
-        # อัปเดตสถานะ Mood
         message_count += 1
         if message.author.name == "Sel1Z":
             last_boss_interaction = time.time()
@@ -128,7 +128,6 @@ async def on_message(message):
             retry_count = 0
             while retry_count < len(API_KEYS):
                 try:
-                    # รีเฟรช Model เพื่ออัปเดตอารมณ์ล่าสุด
                     model = configure_model()
                     
                     if message.author.id not in chat_histories:
@@ -136,10 +135,8 @@ async def on_message(message):
                     
                     chat = model.start_chat(history=chat_histories[message.author.id])
                     
-                    # สร้าง Prompt (รวมชื่อคนคุย + ข้อความ + รูปภาพ)
                     prompt_parts = [f"[ชื่อคนคุย: {message.author.name}]: {message.content or 'ส่องรูปนี้หน่อย'}"]
                     
-                    # เช็คว่ามีรูปไหม
                     if message.attachments:
                         for attachment in message.attachments:
                             if any(ext in attachment.url.lower() for ext in ['png', 'jpg', 'jpeg', 'webp']):
@@ -148,8 +145,6 @@ async def on_message(message):
                                 prompt_parts.append(img)
 
                     response = chat.send_message(prompt_parts)
-                    
-                    # บันทึกประวัติ (Text Only)
                     chat_histories[message.author.id] = chat.history[-15:]
 
                     await message.reply(response.text)
@@ -168,15 +163,17 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# --- ⏱️ 4. คำสั่งต่างๆ (ครบถ้วน) ---
+# --- ⏱️ 4. คำสั่งต่างๆ (แก้ชื่อฟังก์ชันแล้ว) ---
 
 @bot.command()
 async def version(ctx):
     mood = get_current_mood()
     await ctx.send(f"🆔 รุ่น: `Gemini 2.5 Flash Lite` | คีย์: {current_key_index + 1}/{len(API_KEYS)}\n💢 อารมณ์: {mood}")
 
-@bot.command()
-async def time(ctx, member: discord.Member = None):
+# 🔥 แก้ชื่อฟังก์ชันจาก time เป็น voice_time เพื่อไม่ให้ชนกับ library time
+# แต่ยังใช้คำสั่ง !time ได้เหมือนเดิมเพราะใส่ name="time" ไว้
+@bot.command(name="time")
+async def voice_time(ctx, member: discord.Member = None):
     target = member or ctx.author
     total = voice_total.get(target.id, datetime.timedelta())
     if target.id in voice_start:
@@ -231,7 +228,7 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_ready():
     load_data()
-    print(f"✅ บอท {bot.user} ตื่นแล้ว! (โหมด God: Vision + Mood + Analysis)")
+    print(f"✅ บอท {bot.user} ตื่นแล้ว! (Vision + Mood + No Bug)")
 
 keep_alive()
 TOKEN = os.getenv('TOKEN')
